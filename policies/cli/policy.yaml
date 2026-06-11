@@ -30,8 +30,13 @@ sources:
     data:
       # Default is github.com/release-engineering/rhtap-ec-policy//data
       # Use our own fork so we can dog-food changes before they go out to everyone
-      - github.com/conforma/rhtap-ec-policy//data
+      #- github.com/conforma/rhtap-ec-policy//data
 
+      ## Actually for now we're using sbaird's PR branch to do some pre-merge testing.
+      ## See https://github.com/release-engineering/rhtap-ec-policy/pull/218
+      - github.com/simonbaird/rhtap-ec-policy//data?ref=seed-new-trusted-task-data
+
+      ## These are likely ignored with new trusted tasks data, but leaving them here for now
       - oci::quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles:latest
       # Tasks from https://github.com/konflux-ci/tekton-tools/tree/main/tasks
       - oci::quay.io/konflux-ci/konflux-vanguard/data-acceptable-bundles:latest
