@@ -17,35 +17,61 @@
 #
 # If we need to diverge from the "official" policy for pre-merge Conforma checks,
 # the Conforma integration test scenario POLICY_CONFIGURATION param can be set to
-# github.com/conforma/cli to use this file.
+# github.com/conforma/cli//policies/cli to use this file.
 #
-# Compare is to the official policy for Red Hat releases of Conforma here:
-# https://gitlab.cee.redhat.com/releng/konflux-release-data/-/blob/main/config/stone-prd-rh01.pg1f.p1/product/EnterpriseContractPolicy/registry-rhtap-contract.yaml
+# Compare this to the official policy for Red Hat releases of Conforma:
 #
-description: 'Custom pre-merge policy for ec'
+#   vimdiff policy.yaml <(curl -s https://gitlab.cee.redhat.com/releng/konflux-release-data/-/raw/main/config/stone-prd-rh01.pg1f.p1/product/EnterpriseContractPolicy/registry-rhtap-contract.yaml | yq .spec)
+#
+description: 'Rules for shipping Conforma CLI to registry.redhat.io (with some tweaks for pre-merge testing)'
 publicKey: 'k8s://openshift-pipelines/public-key'
 sources:
   - name: Release Policies
     data:
-      - github.com/release-engineering/rhtap-ec-policy//data
+      # Default is github.com/release-engineering/rhtap-ec-policy//data
+      # Use our own fork so we can dog-food changes before they go out to everyone
+      - github.com/conforma/rhtap-ec-policy//data
+
       - oci::quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles:latest
-      # This is likely to be retired soon, but we need it now I think
+      # Tasks from https://github.com/konflux-ci/tekton-tools/tree/main/tasks
       - oci::quay.io/konflux-ci/konflux-vanguard/data-acceptable-bundles:latest
+      # Tasks from https://github.com/konflux-ci/konflux-test-tasks/tree/main/task
+      - oci::quay.io/konflux-ci/integration-service-catalog/data-acceptable-bundles:latest
+
     policy:
-      # Let's not pin the digest here
-      - oci::quay.io/enterprise-contract/ec-release-policy:latest
+      - oci::quay.io/conforma/release-policy:konflux
+
+    # At this point we are intentionally more strict than registry-standard
+    volatileConfig:
+      exclude:
+        # https://github.com/sigstore/timestamp-authority/security/advisories/GHSA-4qg8-fj49-pxjh
+        # https://github.com/sigstore/fulcio/security/advisories/GHSA-f83f-xpx7-ffpw
+        # These are detected by clair in our 0.6 and 0.7 release branch builds of the ec cli.
+        # I don't think they could impact ec we are not providing a timestamp-authority or fulcio
+        # service. Upgrading the dependencies is difficult in the older release branches, I think
+        # due to the OPA 0.x to 1.x upgrade, though it is already done in main branch. Create an
+        # these two exceptions rather than do all the work to backport. Once we stop maintaining
+        # ec v0.7 this can be removed.
+        - value: "cve.cve_blockers:GHSA-4qg8-fj49-pxjh"
+          componentNames: [cli-v06, cli-v07]
+          effectiveUntil: "2026-12-01T00:00:00Z"
+          reference: "https://issues.redhat.com/browse/EC-1631"
+        - value: "cve.cve_blockers:GHSA-f83f-xpx7-ffpw"
+          componentNames: [cli-v06, cli-v07]
+          effectiveUntil: "2026-12-01T00:00:00Z"
+          reference: "https://issues.redhat.com/browse/EC-1631"
+
     config:
       include:
         - '@redhat'
       exclude:
-        # For an upstream release, we don't worry about restricted release dates.
+        # For pre-merge, or for an upstream release, we don't care about
+        # restricted release dates
         - schedule
-    ruleData:
-      #
-      # Make high sev CVEs non-blocking temporarily
-      # Remove this when https://issues.redhat.com/browse/EC-927 is resolved
-      #
-      # (The default here is [critical,high])
-      restrict_cve_security_levels: [critical]
-      # (The default here is [])
-      warn_cve_security_levels: [high]
+
+    #ruleData:
+    #  # Make high sev CVEs non-blocking temporarily
+    #  # (The default here is [critical,high])
+    #  restrict_cve_security_levels: [critical]
+    #  # (The default here is [])
+    #  warn_cve_security_levels: [high]
